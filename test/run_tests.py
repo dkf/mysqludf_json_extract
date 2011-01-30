@@ -97,6 +97,12 @@ class TestBasic(unittest.TestCase):
     self.assertResult(None, "a", '{"a":[1]}')
   def test_map_result(self):
     self.assertResult(None, "a", '{"a":{"b":1}}')
+  def test_double_periods(self):
+    self.assertResult("bar", "ab....cdef.g...", '{"zc":{},"ab":{"cdef":{"g":"bar"}}}')
+  def test_unparsable(self):
+    self.assertResult(None, "a", '{"a"::::1}')
+    self.assertResult(None, "a", '{_"a":1}')
+    self.assertResult(None, "a", '{{}"a":1}')
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])

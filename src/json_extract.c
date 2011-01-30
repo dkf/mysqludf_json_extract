@@ -8,17 +8,23 @@
 #include <yajl/yajl_parse.h>
 
 #if 0
-#define OUT(f, ...) {\
-    if (json_state->current == NULL) { \
+#define OUT(f, ...) {			       \
+    if (json_state->current == NULL) {	       \
       printf("d: d, ad: d\t"f, ##__VA_ARGS__); \
-    } else { \
-      printf("d: %d, ad: %d\t"f, \
-	     json_state->current->depth, \
-	     json_state->current->arr_depth, ##__VA_ARGS__);	\
-    } \
+    } else {				       \
+      printf("d: %d, ad: %d, n: %s\t"f,	       \
+	     json_state->current->depth,       \
+	     json_state->current->arr_depth,   \
+	     json_state->current->el,	       \
+	     ##__VA_ARGS__);		       \
+    }					       \
   }
+#define PARSE_TREE(el) printf("->%s", el)
+#define PARSE_TREE_END(el) printf("\n")
 #else 
 #define OUT(f, ...)
+#define PARSE_TREE(el)
+#define PARSE_TREE_END(el)
 #endif
 
 struct json_el {
@@ -44,7 +50,7 @@ int handle_null(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("NULL\n");
   if (json_state->done == 1) {
-    strlcpy(json_state->res, "null", 5);
+    strncpy(json_state->res, "null", 4);
     json_state->res_len = 4;
     return 0;
   } else if (json_state->current->arr_depth > 0) {
@@ -60,10 +66,10 @@ int handle_bool(void *ctx, int b) {
   OUT("BOOL %d\n", b);
   if (json_state->done == 1) {
     if (b) {
-      strlcpy(json_state->res, "true", 5);
+      strncpy(json_state->res, "true", 4);
       json_state->res_len = 4;
     } else {
-      strlcpy(json_state->res, "false", 6);
+      strncpy(json_state->res, "false", 5);
       json_state->res_len = 5;
     }
     return 0;
@@ -82,7 +88,7 @@ int handle_num(void *ctx, const char *num, unsigned int len) {
     if (len > 255) {
       len = 255;
     }
-    strlcpy(json_state->res, num, len + 1);
+    strncpy(json_state->res, num, len);
     json_state->res_len = len;
     return 0;
   } else if (json_state->current->arr_depth > 0) {
@@ -100,7 +106,7 @@ int handle_string(void *ctx, const unsigned char *s, unsigned int len) {
     len = 255;
   }
   if (json_state->done == 1) {
-    strlcpy(json_state->res, (const char *) s, len + 1);
+    strncpy(json_state->res, (const char *) s, len);
     json_state->res_len = len;
     return 0;
   }
@@ -151,7 +157,10 @@ int handle_end_map(void *ctx) {
     // shouldn't happen
     json_state->done = 0;
     return 0;
+  } else if (json_state->current->arr_depth > 0) {
+    return 1;
   }
+  json_state->current->depth--;
   return 1;
 }
 
@@ -227,27 +236,36 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   int last = 0;
   int i = 0;
   for (i = 0; i < args->lengths[0]; i++) {
-    if (*(args->args[0] + i) == '.' && last != i) {
-      json_state->current->el = calloc(i - last + 1, sizeof(char));
-      strlcpy(json_state->current->el, args->args[0] + last, i - last + 1);
-      json_state->current->next = calloc(1, sizeof(struct json_el));
-      json_state->current->next->prev = json_state->current;
-      json_state->current = json_state->current->next;
-      json_state->current->depth = 0;
-      last = i + 1;
+    if (*(args->args[0] + i) == '.') {
+      if (last == i) {
+	last = i + 1;
+      } else {
+	json_state->current->el = calloc(i - last, sizeof(char));
+	strncpy(json_state->current->el, args->args[0] + last, i - last);
+	json_state->current->next = calloc(1, sizeof(struct json_el));
+	json_state->current->next->prev = json_state->current;
+	json_state->current = json_state->current->next;
+	json_state->current->depth = 0;
+	last = i + 1;
+      }
     }
   }
   if (last != i) {
-    json_state->current->el = calloc(i - last + 1, sizeof(char));
-    strlcpy(json_state->current->el, args->args[0] + last, i - last + 1);
-  } else {
-    // free next
+    json_state->current->el = calloc(i - last, sizeof(char));
+    strncpy(json_state->current->el, args->args[0] + last, i - last);
+  } else if (json_state->current != NULL) {
+    struct json_el *to_free = json_state->current;
+    json_state->current = to_free->prev;
+    free(to_free);
+    json_state->current->next = NULL;
   }
 
   struct json_el *cur = json_state->head;
   while (cur != NULL) {
+    PARSE_TREE(cur->el);
     cur = cur->next;
   }
+  PARSE_TREE_END();
 
   json_state->last = json_state->current;
   initid->ptr = (void *) json_state;
