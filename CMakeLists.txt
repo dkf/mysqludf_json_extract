@@ -1,0 +1,16 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+
+PROJECT(mysqludf_json_extract C)
+
+IF (NOT CMAKE_BUILD_TYPE)
+  SET(CMAKE_BUILD_TYPE "Release")
+ENDIF (NOT CMAKE_BUILD_TYPE)
+
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -std=c99")
+
+ADD_SUBDIRECTORY(src)
+ADD_SUBDIRECTORY(test)
+
+ADD_CUSTOM_TARGET(test
+                  ./run_tests.py ${CMAKE_CURRENT_BINARY_DIR}/src/libmysqludf_json_extract.so
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
