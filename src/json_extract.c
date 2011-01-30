@@ -233,8 +233,16 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   initid->const_item = 1;
 
   struct json_state *json_state = calloc(1, sizeof(struct json_state));
+  if (json_state == NULL) {
+    strcpy(message, "json_extract() can't calloc");
+    return 1;
+  }
 
   json_state->head = calloc(1, sizeof(struct json_el));
+  if (json_state == NULL) {
+    strcpy(message, "json_extract() can't calloc");
+    return 1;
+  }
   json_state->head->depth = 0;
   json_state->current = json_state->head;
 
@@ -246,9 +254,19 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
 	last = i + 1;
       } else {
 	json_state->current->el = calloc(i - last, sizeof(char));
+	if (json_state->current->el == NULL) {
+	  strcpy(message, "json_extract() can't calloc");
+	  return 1;
+	}
+
 	strncpy(json_state->current->el, args->args[0] + last, i - last);
 	json_state->current->el_len = i - last;
 	json_state->current->next = calloc(1, sizeof(struct json_el));
+	if (json_state->current->next == NULL) {
+	  strcpy(message, "json_extract() can't calloc");
+	  return 1;
+	}
+
 	json_state->current->next->prev = json_state->current;
 	json_state->current = json_state->current->next;
 	json_state->current->depth = 0;
@@ -258,6 +276,11 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   }
   if (last != i) {
     json_state->current->el = calloc(i - last, sizeof(char));
+    if (json_state->current->el == NULL) {
+      strcpy(message, "json_extract() can't calloc");
+      return 1;
+    }
+
     strncpy(json_state->current->el, args->args[0] + last, i - last);
     json_state->current->el_len = i - last;
   } else if (json_state->current != NULL) {
