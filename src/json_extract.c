@@ -29,6 +29,7 @@
 
 struct json_el {
   char *el;
+  int el_len;
   int depth;
   int arr_depth;
   struct json_el *next;
@@ -138,7 +139,9 @@ int handle_map_key(void *ctx, const unsigned char *s, unsigned int len) {
   if (json_state->current->arr_depth > 0) {
     return 1;
   }
-  if (json_state->current->depth == 0 && strncmp((const char *) s, json_state->current->el, len) == 0) {
+  if (json_state->current->depth == 0 && 
+      json_state->current->el_len == len && 
+      strncmp((const char *) s, json_state->current->el, len) == 0) {
     json_state->current = json_state->current->next;
     if (json_state->current == NULL) {
       json_state->done = 1;
@@ -244,6 +247,7 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
       } else {
 	json_state->current->el = calloc(i - last, sizeof(char));
 	strncpy(json_state->current->el, args->args[0] + last, i - last);
+	json_state->current->el_len = i - last;
 	json_state->current->next = calloc(1, sizeof(struct json_el));
 	json_state->current->next->prev = json_state->current;
 	json_state->current = json_state->current->next;
@@ -255,6 +259,7 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   if (last != i) {
     json_state->current->el = calloc(i - last, sizeof(char));
     strncpy(json_state->current->el, args->args[0] + last, i - last);
+    json_state->current->el_len = i - last;
   } else if (json_state->current != NULL) {
     struct json_el *to_free = json_state->current;
     json_state->current = to_free->prev;

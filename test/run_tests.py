@@ -112,6 +112,9 @@ class TestBasic(TestBase):
     self.assertResult(None, "a", '{"a"::::1}')
     self.assertResult(None, "a", '{_"a":1}')
     self.assertResult(None, "a", '{{}"a":1}')
+  def test_substr(self):
+    self.assertResult(None, "a", '{"abc":1}')
+    self.assertResult(None, "abc", '{"a":1}')
 
 class TestFuzz(TestBase):
   def gen_val(self):
@@ -149,7 +152,7 @@ class TestFuzz(TestBase):
         k = "k%s" % self.count
         o[k] = self.gen_val()
       o["v1"] = {"y2":-1}
-      self.assertResult("-1", "v1.y2", dumps(o))
+      self.assertResult("-1", "v1.y2", dumps(o, sort_keys=True))
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])
