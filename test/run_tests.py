@@ -3,6 +3,8 @@
 import sys
 import unittest
 from ctypes import *
+from json import dumps
+from random import randint
 
 l = CDLL(sys.argv[1])
 l.json_extract.restype = c_char_p
@@ -35,18 +37,24 @@ TwoLengths = c_ulong * 2
 
 c_string = create_string_buffer
 
-class TestBasic(unittest.TestCase):
-  def assertResult(self, expected, spec, s):
-    """expected is None to indicate a null result, False to indicate an error"""
-    initid = UDF_INIT(c_char('\x01'), c_uint(32), c_ulong(100), None, c_char('\x00'), None)
-    args = UDF_ARGS(
+class TestBase(unittest.TestCase):
+  def udf_init(self):
+    return UDF_INIT(c_char('\x01'), c_uint(32), c_ulong(100), None, c_char('\x00'), None)
+  def udf_args(self, spec, json):
+    return UDF_ARGS(
       c_uint(2),
       TwoArgsType(STRING_RESULT, STRING_RESULT),
-      TwoArgs(c_char_p(spec), c_char_p(s)),
-      TwoLengths(c_ulong(len(spec)), c_ulong(len(s))),
+      TwoArgs(c_char_p(spec), c_char_p(json)),
+      TwoLengths(c_ulong(len(spec)), c_ulong(len(json))),
       pointer(c_char('\x01')), None, None, None)
+  def do_init(self, initid_p, args_p):
+    return l.json_extract_init(initid_p, args_p, None)
+  def assertResult(self, expected, spec, json):
+    """expected is None to indicate a null result, False to indicate an error"""
+    initid = self.udf_init()
+    args = self.udf_args(spec, json)
 
-    self.assertEquals(0, l.json_extract_init(pointer(initid), pointer(args), None))
+    self.assertEquals(0, self.do_init(pointer(initid), pointer(args)))
 
     length = pointer(c_uint(0))
     result = c_char_p('\x00' * 255)
@@ -71,6 +79,7 @@ class TestBasic(unittest.TestCase):
 
     l.json_extract_deinit(pointer(initid))
 
+class TestBasic(TestBase):
   def test_single_str(self):
     self.assertResult("foo", "a", "{\"a\":\"foo\"}")
     self.assertResult("foo", "abcdef", "{\"abcdef\":\"foo\"}")
@@ -103,6 +112,44 @@ class TestBasic(unittest.TestCase):
     self.assertResult(None, "a", '{"a"::::1}')
     self.assertResult(None, "a", '{_"a":1}')
     self.assertResult(None, "a", '{{}"a":1}')
+
+class TestFuzz(TestBase):
+  def gen_val(self):
+    o = {}
+    r = randint(0, 12)
+    self.count += 1
+    k = "k%s" % self.count
+    # obj, array, null, bool, num, string
+    if r < 2: # obj
+      o[k] = self.gen_val()
+    elif r < 4: # array
+      a = []
+      for i in range(0, randint(1, 5)):
+        a.append(self.gen_val())
+      o[k] = a
+    elif r < 6: # null
+      o[k] = None
+    elif r < 8: # bool
+      if randint(0, 1) == 0:
+        o[k] = False
+      else:
+        o[k] = True
+    elif r < 10: # num
+      o[k] = randint(0, 1000)
+    else: # string
+      o[k] = k
+    return o
+
+  def test_fuzz(self):
+    for i in range(1, 1000):
+      o = {}
+      self.count = 0
+      for j in range(1, 50):
+        self.count += 1
+        k = "k%s" % self.count
+        o[k] = self.gen_val()
+      o["v1"] = {"y2":-1}
+      self.assertResult("-1", "v1.y2", dumps(o))
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])

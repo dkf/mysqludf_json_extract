@@ -184,7 +184,9 @@ int handle_end_array(void *ctx) {
     return 0;
   }
   json_state->current->arr_depth--;
-  json_state->current->depth--;
+  if (json_state->current->arr_depth == 0) {
+    json_state->current->depth--;
+  }
   return 1;
 }
 
