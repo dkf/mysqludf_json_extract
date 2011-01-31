@@ -253,13 +253,7 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
       if (last == i) {
 	last = i + 1;
       } else {
-	json_state->current->el = calloc(i - last, sizeof(char));
-	if (json_state->current->el == NULL) {
-	  strcpy(message, "json_extract() can't calloc");
-	  return 1;
-	}
-
-	strncpy(json_state->current->el, args->args[0] + last, i - last);
+	json_state->current->el = args->args[0] + last;
 	json_state->current->el_len = i - last;
 	json_state->current->next = calloc(1, sizeof(struct json_el));
 	if (json_state->current->next == NULL) {
@@ -275,13 +269,7 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
     }
   }
   if (last != i) {
-    json_state->current->el = calloc(i - last, sizeof(char));
-    if (json_state->current->el == NULL) {
-      strcpy(message, "json_extract() can't calloc");
-      return 1;
-    }
-
-    strncpy(json_state->current->el, args->args[0] + last, i - last);
+    json_state->current->el = args->args[0] + last;
     json_state->current->el_len = i - last;
   } else if (json_state->current != NULL) {
     struct json_el *to_free = json_state->current;
@@ -309,7 +297,6 @@ void json_extract_deinit(UDF_INIT *initid) {
     struct json_el *el = state->head;
     while (el != NULL) {
       struct json_el *n = el->next;
-      free(el->el);
       free(el);
       el = n;
     }
