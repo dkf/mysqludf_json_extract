@@ -58,4 +58,5 @@ mysql> select json_extract("a.bc", val) result from foo;
 
 * coming soon
 ** TODO need to run it under valgrind to check for memory leaks
-** TODO should add a json_array_get(index, array)
+** TODO should add a json_array_get(index, array): string
+** TODO should add a json_array_size(array): num
