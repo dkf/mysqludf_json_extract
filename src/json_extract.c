@@ -71,7 +71,10 @@ int handle_null(void *ctx) {
   } 
 
   if (json_state->done == GATHERING) {
-    yajl_gen_null(json_state->gen);
+    if (yajl_gen_null(json_state->gen) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }  
  
   if (json_state->current->arr_depth == 0) {
@@ -95,7 +98,10 @@ int handle_bool(void *ctx, int b) {
   }
 
   if (json_state->done == GATHERING) {
-    yajl_gen_bool(json_state->gen, b);
+    if (yajl_gen_bool(json_state->gen, b) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
 
   if (json_state->current->arr_depth == 0) {
@@ -117,7 +123,10 @@ int handle_num(void *ctx, const char *num, unsigned int len) {
   }
 
   if (json_state->done == GATHERING) {
-    yajl_gen_number(json_state->gen, num, len);
+    if (yajl_gen_number(json_state->gen, num, len) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
 
   if (json_state->current->arr_depth == 0) {
@@ -136,7 +145,10 @@ int handle_string(void *ctx, const unsigned char *s, unsigned int len) {
   }
 
   if (json_state->done == GATHERING) {
-    yajl_gen_string(json_state->gen, s, len);
+    if (yajl_gen_string(json_state->gen, s, len) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   
   if (json_state->current->arr_depth == 0) {
@@ -152,7 +164,10 @@ int handle_start_map(void *ctx) {
     json_state->done = GATHERING;
   }
   if (json_state->done == GATHERING) {
-    yajl_gen_map_open(json_state->gen);
+    if (yajl_gen_map_open(json_state->gen) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   return 1;
 }
@@ -166,7 +181,10 @@ int handle_map_key(void *ctx, const unsigned char *s, unsigned int len) {
     return 0;
   }
   if (json_state->done == GATHERING) {
-    yajl_gen_string(json_state->gen, s, len);
+    if (yajl_gen_string(json_state->gen, s, len) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   if (json_state->current->arr_depth > 0) {
     return 1;
@@ -195,7 +213,10 @@ int handle_end_map(void *ctx) {
     return 0;
   }
   if (json_state->done == GATHERING) {
-    yajl_gen_map_close(json_state->gen);
+    if (yajl_gen_map_close(json_state->gen) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   if (json_state->current->arr_depth == 0) {
     json_state->current->depth--;
@@ -213,7 +234,10 @@ int handle_start_array(void *ctx) {
     json_state->done = GATHERING;
   }
   if (json_state->done == GATHERING) {
-    yajl_gen_array_open(json_state->gen);
+    if (yajl_gen_array_open(json_state->gen) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   json_state->current->arr_depth++;
   return 1;
@@ -228,7 +252,10 @@ int handle_end_array(void *ctx) {
     return 0;
   }
   if (json_state->done == GATHERING) {
-    yajl_gen_array_close(json_state->gen);
+    if (yajl_gen_array_close(json_state->gen) != yajl_gen_status_ok) {
+      json_state->done = DONE;
+      return 0;
+    }
   }
   json_state->current->arr_depth--;
   if (json_state->current->arr_depth == 0) {
@@ -380,7 +407,15 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
   json_state->current = json_state->head;
 
   yajl_handle hand = yajl_alloc(&callbacks, &parser_config, NULL, initid->ptr);
+  if (hand == NULL) {
+    *is_null = 1;
+    goto bail_hand;
+  }
   yajl_gen g = yajl_gen_alloc2(yajl_gen_take_output, NULL, NULL, initid->ptr);
+  if (g == NULL) {
+    *is_null = 1;
+    goto bail_gen;
+  }
   json_state->gen = g;
 
   yajl_status status;
@@ -416,7 +451,9 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
  bail:
   yajl_free(hand);
+ bail_gen:
   yajl_gen_free(g);
+ bail_hand:
   return result;
 }
 
