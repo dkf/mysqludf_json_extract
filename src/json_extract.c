@@ -29,17 +29,17 @@
 
 struct json_el {
   char *el;
-  int el_len;
-  int depth;
-  int arr_depth;
+  uint32_t el_len;
+  uint32_t depth;
+  uint32_t arr_depth;
   struct json_el *next;
   struct json_el *prev;
 };
 
 struct json_state {
-  int done;
+  uint32_t done;
   char *res;
-  int res_len;
+  uint32_t res_len;
   struct json_el *head;
   struct json_el *current;
   struct json_el *last;
@@ -52,7 +52,7 @@ int handle_null(void *ctx) {
   OUT("NULL\n");
   if (json_state->done == 1) {
     strncpy(json_state->res, "null", 4);
-    json_state->res_len = 4;
+    json_state->res_len += 4;
     return 0;
   } else if (json_state->current->arr_depth > 0) {
     return 1;
@@ -68,10 +68,10 @@ int handle_bool(void *ctx, int b) {
   if (json_state->done == 1) {
     if (b) {
       strncpy(json_state->res, "true", 4);
-      json_state->res_len = 4;
+      json_state->res_len += 4;
     } else {
       strncpy(json_state->res, "false", 5);
-      json_state->res_len = 5;
+      json_state->res_len += 5;
     }
     return 0;
   } else if (json_state->current->arr_depth > 0) {
@@ -90,7 +90,7 @@ int handle_num(void *ctx, const char *num, unsigned int len) {
       len = 255;
     }
     strncpy(json_state->res, num, len);
-    json_state->res_len = len;
+    json_state->res_len += len;
     return 0;
   } else if (json_state->current->arr_depth > 0) {
     return 1;
@@ -108,7 +108,7 @@ int handle_string(void *ctx, const unsigned char *s, unsigned int len) {
   }
   if (json_state->done == 1) {
     strncpy(json_state->res, (const char *) s, len);
-    json_state->res_len = len;
+    json_state->res_len += len;
     return 0;
   }
   if (json_state->current->arr_depth > 0) {
@@ -309,6 +309,7 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
   struct json_state *json_state = (struct json_state *) initid->ptr;
   json_state->done = 0;
   json_state->res = result;
+  json_state->res_len = 0;
   json_state->current = json_state->head;
   while (json_state->current != NULL) {
     json_state->current->depth = 0;
