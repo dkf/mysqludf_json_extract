@@ -359,6 +359,12 @@ void json_extract_deinit(UDF_INIT *initid) {
   }
 }
 
+void yajl_gen_take_output(void *ctx, const char *s, unsigned int len) {
+  struct json_state *json_state = (struct json_state *) ctx;
+  strncpy(json_state->res + json_state->res_len, s, len);
+  json_state->res_len += len;
+}
+
 char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		       unsigned long *length, char *is_null, char *error) {
   struct json_state *json_state = (struct json_state *) initid->ptr;
@@ -374,7 +380,7 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
   json_state->current = json_state->head;
 
   yajl_handle hand = yajl_alloc(&callbacks, &parser_config, NULL, initid->ptr);
-  yajl_gen g = yajl_gen_alloc(NULL, NULL);
+  yajl_gen g = yajl_gen_alloc2(yajl_gen_take_output, NULL, NULL, initid->ptr);
   json_state->gen = g;
 
   yajl_status status;
@@ -403,11 +409,7 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
     *length = json_state->res_len;
   } else if (json_state->done == GATHERING) {
     *is_null = 0;
-    const unsigned char *buf;
-    unsigned int len;
-    yajl_gen_get_buf(g, &buf, &len);
-    strncpy(result, (const char *) buf, len);
-    *length = len;
+    *length = json_state->res_len;
   } else {
     *is_null = 1;
   }
