@@ -163,7 +163,19 @@ class TestFuzz(TestBase):
       self.assertResult(
         dumps(o["v1"], separators=(',',':')),
         "v1", dumps(o, sort_keys=True))
-
+  def test_obj_fuzz(self):
+    for i in range(1, 1000):
+      o = {}
+      self.count = 0
+      for j in range(1, 50):
+        self.count += 1
+        k = "k%s" % self.count
+        o[k] = self.gen_val()
+      o["v1"] = {"y1":self.gen_val(), "y2":self.gen_val()}
+      o["v2"] = {"y1":self.gen_val(), "y2":self.gen_val()}
+      self.assertResult(
+        dumps(o["v1"]["y1"], separators=(',',':')),
+        "v1.y1", dumps(o, sort_keys=True))
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])

@@ -164,6 +164,7 @@ int handle_start_map(void *ctx) {
     json_state->done = GATHERING;
   }
   if (json_state->done == GATHERING) {
+    json_state->current->arr_depth++;
     if (yajl_gen_map_open(json_state->gen) != yajl_gen_status_ok) {
       json_state->done = DONE;
       return 0;
@@ -217,11 +218,13 @@ int handle_end_map(void *ctx) {
       json_state->done = DONE;
       return 0;
     }
+    json_state->current->arr_depth--;
   }
   if (json_state->current->arr_depth == 0) {
     json_state->current->depth--;
     if (json_state->done == GATHERING && json_state->current->depth == 0) {
-      return 1;
+      json_state->done = DONE;
+      return 0;
     }
   }
   return 1;
