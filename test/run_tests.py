@@ -4,7 +4,8 @@ import sys
 import unittest
 from ctypes import *
 from json import dumps
-from random import randint
+from random import randint, choice
+from types import *
 
 l = CDLL(sys.argv[1])
 l.json_extract.restype = c_char_p
@@ -115,6 +116,31 @@ class TestBasic(TestBase):
     self.assertResult(None, "abc", '{"a":1}')
 
 class TestFuzz(TestBase):
+  def select_path(self, o, acc):
+    if type(o) is DictType:
+      i = randint(0, 3)
+      if i > 1 or not acc:
+        k = choice(o.keys())
+        acc.append(k)
+        return self.select_path(o[k], acc)
+      else:
+        return o
+    else:
+      return o
+  def serialize_val(self, o):
+    if type(o) is DictType or type(o) is ListType:
+      return dumps(o, separators=(',',':'))
+    elif type(o) is BooleanType:
+      if o is True:
+        return "true"
+      else:
+        return "false"
+    elif type(o) is NoneType:
+      return "null"
+    elif type(o) is StringType:
+      return o
+    else:
+      return str(o)
   def gen_val(self):
     o = {}
     r = randint(0, 12)
@@ -176,6 +202,12 @@ class TestFuzz(TestBase):
       self.assertResult(
         dumps(o["v1"]["y1"], separators=(',',':')),
         "v1.y1", dumps(o, sort_keys=True))
+      path = []
+      v = self.select_path(o, path)
+      self.assertResult(
+        self.serialize_val(v),
+        ".".join(path),
+        dumps(o))
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])
