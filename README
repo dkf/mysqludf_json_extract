@@ -6,11 +6,11 @@ mysql udf to select scalar values out of json objects stored in mysql columns
 * dependencies
 yajl - git://github.com/lloyd/yajl.git
 * building
-cmake .
+cmake . # set MYSQL_HOME=/path/to/dir to specific where to find mysql
 make
 make test
 * installing
-cp src/libmysqludf_json_extract.so /usr/local/mysql/lib/plugin # or where ever your plugin directory is
+sudo make install
 mysql> drop function json_extract;
 Query OK, 0 rows affected (0.00 sec)
 mysql> create function json_extract returns string soname 'libmysqludf_json_extract.so';

@@ -1,9 +1,10 @@
 SET (SRCS json_extract.c)
 
-INCLUDE_DIRECTORIES("/usr/local/mysql/include")
+INCLUDE_DIRECTORIES(${MYSQL_INCLUDE_DIR})
 
 ADD_DEFINITIONS("-DHAVE_DLOPEN")
 ADD_LIBRARY(mysqludf_json_extract MODULE ${SRCS})
 
 TARGET_LINK_LIBRARIES(mysqludf_json_extract yajl)
 
+INSTALL(TARGETS mysqludf_json_extract DESTINATION ${MYSQL_PLUGIN_DIR})
