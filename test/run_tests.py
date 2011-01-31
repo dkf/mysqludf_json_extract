@@ -57,7 +57,7 @@ class TestBase(unittest.TestCase):
     self.assertEquals(0, self.do_init(pointer(initid), pointer(args)))
 
     length = pointer(c_uint(0))
-    result = c_char_p('\x00' * 255)
+    result = c_char_p('\x00' * max(255, len(json)))
     is_null = pointer(c_char('\x00'))
     error = pointer(c_char('\x00'))
 
@@ -70,6 +70,7 @@ class TestBase(unittest.TestCase):
         self.assertEquals(expected, None)
       elif is_null.contents.value == '\x00':
         self.assertEquals(expected, actual)
+        self.assertEquals(len(actual), length.contents.value)
       else:
         self.fail("is_null is %s, not 0 or 1" % is_null.contents.value)
     elif error.contents.value == '\x01':
@@ -96,16 +97,13 @@ class TestBasic(TestBase):
     self.assertResult("42", "z.bc.def", '{"a":31,"d":[null],"z":{"bc":{"def":42}}}')
   def test_array_stack_bug(self):
     self.assertResult("42", "z.bc.def", '{"a":31,"d":[null,2,{"a":1}],"z":{"bc":{"def":42}}}')
-  def test_result_str_too_big(self):
-    self.assertResult("a" * 255, "a", '{"a":"%s"}' % ("a" * 300))
-  def test_result_num_too_big(self):
-    self.assertResult("1" + ("0" * 254), "a", '{"a":"%s"}' % ("1" + ("0" * 300)))
   def test_array_start(self):
     self.assertResult(None, "a", '[{"a":1}]')
   def test_obj_result(self):
-    self.assertResult(None, "a", '{"a":[1]}')
+    self.assertResult("[1]", "a", '{"a":[1]}')
+    self.assertResult("[1]", "a", '{"a":[1]}')
   def test_map_result(self):
-    self.assertResult(None, "a", '{"a":{"b":1}}')
+    self.assertResult('{"b":1}', "a", '{"a":{"b":1}}')
   def test_double_periods(self):
     self.assertResult("bar", "ab....cdef.g...", '{"zc":{},"ab":{"cdef":{"g":"bar"}}}')
   def test_unparsable(self):
@@ -153,6 +151,19 @@ class TestFuzz(TestBase):
         o[k] = self.gen_val()
       o["v1"] = {"y2":-1}
       self.assertResult("-1", "v1.y2", dumps(o, sort_keys=True))
+  def test_arr_fuzz(self):
+    for i in range(1, 1000):
+      o = {}
+      self.count = 0
+      for j in range(1, 50):
+        self.count += 1
+        k = "k%s" % self.count
+        o[k] = self.gen_val()
+      o["v1"] = [self.gen_val(), self.gen_val()]
+      self.assertResult(
+        dumps(o["v1"], separators=(',',':')),
+        "v1", dumps(o, sort_keys=True))
+
 
 if __name__ == "__main__":
   unittest.main(argv=[sys.argv[0]] + sys.argv[2:])

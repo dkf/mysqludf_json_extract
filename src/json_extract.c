@@ -6,6 +6,7 @@
 #include <mysql.h>
 
 #include <yajl/yajl_parse.h>
+#include <yajl/yajl_gen.h>
 
 #if 0
 #define OUT(f, ...) {			       \
@@ -27,7 +28,19 @@
 #define PARSE_TREE_END(el)
 #endif
 
+enum parser_state {
+  PARSING = 0,
+  DONE,
+  GATHERING,
+};
+
+enum el_type {
+  EL_MATCHER = 0,
+  EL_TERMINAL,
+};
+
 struct json_el {
+  enum el_type type;
   char *el;
   uint32_t el_len;
   uint32_t depth;
@@ -37,12 +50,13 @@ struct json_el {
 };
 
 struct json_state {
-  uint32_t done;
+  enum parser_state done;
   char *res;
   uint32_t res_len;
   struct json_el *head;
   struct json_el *current;
   struct json_el *last;
+  yajl_gen gen;
 };
 
 static yajl_parser_config parser_config = { 1, 0 };
@@ -50,14 +64,18 @@ static yajl_parser_config parser_config = { 1, 0 };
 int handle_null(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("NULL\n");
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     strncpy(json_state->res, "null", 4);
     json_state->res_len += 4;
     return 0;
-  } else if (json_state->current->arr_depth > 0) {
-    return 1;
-  } else {
-    json_state->current->depth--;
+  } 
+
+  if (json_state->done == GATHERING) {
+    yajl_gen_null(json_state->gen);
+  }  
+ 
+  if (json_state->current->arr_depth == 0) {
+      json_state->current->depth--;
   }
   return 1;
 }
@@ -65,7 +83,7 @@ int handle_null(void *ctx) {
 int handle_bool(void *ctx, int b) {
   struct json_state *json_state = ctx;
   OUT("BOOL %d\n", b);
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     if (b) {
       strncpy(json_state->res, "true", 4);
       json_state->res_len += 4;
@@ -74,9 +92,13 @@ int handle_bool(void *ctx, int b) {
       json_state->res_len += 5;
     }
     return 0;
-  } else if (json_state->current->arr_depth > 0) {
-    return 1;
-  } else {
+  }
+
+  if (json_state->done == GATHERING) {
+    yajl_gen_bool(json_state->gen, b);
+  }
+
+  if (json_state->current->arr_depth == 0) {
     json_state->current->depth--;
   }
   return 1;
@@ -85,16 +107,20 @@ int handle_bool(void *ctx, int b) {
 int handle_num(void *ctx, const char *num, unsigned int len) {
   struct json_state *json_state = ctx;
   OUT("NUM\n");
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     if (len > 255) {
       len = 255;
     }
     strncpy(json_state->res, num, len);
     json_state->res_len += len;
     return 0;
-  } else if (json_state->current->arr_depth > 0) {
-    return 1;
-  } else {
+  }
+
+  if (json_state->done == GATHERING) {
+    yajl_gen_number(json_state->gen, num, len);
+  }
+
+  if (json_state->current->arr_depth == 0) {
     json_state->current->depth--;
   }
   return 1;
@@ -103,27 +129,30 @@ int handle_num(void *ctx, const char *num, unsigned int len) {
 int handle_string(void *ctx, const unsigned char *s, unsigned int len) {
   struct json_state *json_state = ctx;
   OUT("STRING\n");
-  if (len > 255) {
-    len = 255;
-  }
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     strncpy(json_state->res, (const char *) s, len);
     json_state->res_len += len;
     return 0;
   }
-  if (json_state->current->arr_depth > 0) {
-    return 1;
+
+  if (json_state->done == GATHERING) {
+    yajl_gen_string(json_state->gen, s, len);
   }
-  json_state->current->depth--;
+  
+  if (json_state->current->arr_depth == 0) {
+    json_state->current->depth--;
+  }
   return 1;
 }
 
 int handle_start_map(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("START_MAP\n");
-  if (json_state->done == 1) {
-    json_state->done = 0;
-    return 0;
+  if (json_state->done == DONE && json_state->current->arr_depth == 0) {
+    json_state->done = GATHERING;
+  }
+  if (json_state->done == GATHERING) {
+    yajl_gen_map_open(json_state->gen);
   }
   return 1;
 }
@@ -131,19 +160,23 @@ int handle_start_map(void *ctx) {
 int handle_map_key(void *ctx, const unsigned char *s, unsigned int len) {
   struct json_state *json_state = ctx;
   OUT("MAP_KEY\n");
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     // shouldn't happen
     json_state->done = 0;
     return 0;
+  }
+  if (json_state->done == GATHERING) {
+    yajl_gen_string(json_state->gen, s, len);
   }
   if (json_state->current->arr_depth > 0) {
     return 1;
   }
   if (json_state->current->depth == 0 && 
       json_state->current->el_len == len && 
-      strncmp((const char *) s, json_state->current->el, len) == 0) {
+      strncmp((const char *) s, json_state->current->el, len) == 0 &&
+      json_state->current->type == EL_MATCHER) {
     json_state->current = json_state->current->next;
-    if (json_state->current == NULL) {
+    if (json_state->current->type == EL_TERMINAL) {
       json_state->done = 1;
     }
 
@@ -156,23 +189,31 @@ int handle_map_key(void *ctx, const unsigned char *s, unsigned int len) {
 int handle_end_map(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("END_MAP\n");
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     // shouldn't happen
     json_state->done = 0;
     return 0;
-  } else if (json_state->current->arr_depth > 0) {
-    return 1;
   }
-  json_state->current->depth--;
+  if (json_state->done == GATHERING) {
+    yajl_gen_map_close(json_state->gen);
+  }
+  if (json_state->current->arr_depth == 0) {
+    json_state->current->depth--;
+    if (json_state->done == GATHERING && json_state->current->depth == 0) {
+      return 1;
+    }
+  }
   return 1;
 }
 
 int handle_start_array(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("START_ARRAY\n");
-  if (json_state->done == 1) {
-    json_state->done = 0;
-    return 0;
+  if (json_state->done == DONE) {
+    json_state->done = GATHERING;
+  }
+  if (json_state->done == GATHERING) {
+    yajl_gen_array_open(json_state->gen);
   }
   json_state->current->arr_depth++;
   return 1;
@@ -181,14 +222,20 @@ int handle_start_array(void *ctx) {
 int handle_end_array(void *ctx) {
   struct json_state *json_state = ctx;
   OUT("END_ARRAY\n");
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     // shouldn't happen
     json_state->done = 0;
     return 0;
   }
+  if (json_state->done == GATHERING) {
+    yajl_gen_array_close(json_state->gen);
+  }
   json_state->current->arr_depth--;
   if (json_state->current->arr_depth == 0) {
     json_state->current->depth--;
+    if (json_state->done == GATHERING && json_state->current->depth == 0) {
+      return 0;
+    }
   }
   return 1;
 }
@@ -239,12 +286,19 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   }
 
   json_state->head = calloc(1, sizeof(struct json_el));
-  if (json_state == NULL) {
+  if (json_state->head == NULL) {
     strcpy(message, "json_extract() can't calloc");
     return 1;
   }
-  json_state->head->depth = 0;
+  json_state->head->type = EL_MATCHER;
   json_state->current = json_state->head;
+
+  json_state->last = calloc(1, sizeof(struct json_el));
+  if (json_state->last == NULL) {
+    strcpy(message, "json_extract() can't calloc");
+    return 1;
+  }
+  json_state->last->type = EL_TERMINAL;
 
   int last = 0;
   int i = 0;
@@ -260,10 +314,9 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
 	  strcpy(message, "json_extract() can't calloc");
 	  return 1;
 	}
-
+	json_state->current->type = EL_MATCHER;
 	json_state->current->next->prev = json_state->current;
 	json_state->current = json_state->current->next;
-	json_state->current->depth = 0;
 	last = i + 1;
       }
     }
@@ -285,7 +338,9 @@ my_bool json_extract_init(UDF_INIT *initid, UDF_ARGS *args, char *message) {
   }
   PARSE_TREE_END();
 
-  json_state->last = json_state->current;
+  json_state->last->prev = json_state->current;
+  json_state->current->next = json_state->last;
+
   initid->ptr = (void *) json_state;
 
   return 0;
@@ -319,6 +374,9 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
   json_state->current = json_state->head;
 
   yajl_handle hand = yajl_alloc(&callbacks, &parser_config, NULL, initid->ptr);
+  yajl_gen g = yajl_gen_alloc(NULL, NULL);
+  json_state->gen = g;
+
   yajl_status status;
 
   status = yajl_parse(hand, (const unsigned char *) args->args[1], args->lengths[1]);
@@ -340,15 +398,23 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
     }
   }
 
-  if (json_state->done == 1) {
+  if (json_state->done == DONE) {
     *is_null = 0;
     *length = json_state->res_len;
+  } else if (json_state->done == GATHERING) {
+    *is_null = 0;
+    const unsigned char *buf;
+    unsigned int len;
+    yajl_gen_get_buf(g, &buf, &len);
+    strncpy(result, (const char *) buf, len);
+    *length = len;
   } else {
     *is_null = 1;
   }
 
  bail:
   yajl_free(hand);
+  yajl_gen_free(g);
   return result;
 }
 

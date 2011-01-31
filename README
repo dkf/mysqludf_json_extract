@@ -2,9 +2,12 @@
 
 mysqludf_json_extract
 * description
-mysql udf to select scalar values out of json objects stored in mysql columns
+mysql udf to select values out of json objects stored in mysql columns
+if the result is a scalar value, you get the scalar
+if the result is an object or an array, you get the json
 * dependencies
 yajl - git://github.com/lloyd/yajl.git
+** TODO move yajl in tree
 * building
 cmake . # set MYSQL_HOME=/path/to/dir to specific where to find mysql
 make
@@ -30,16 +33,16 @@ mysql> select * from foo;
 5 rows in set (0.00 sec)
 
 mysql> select json_extract("a", val) result from foo;
-+--------+
-| result |
-+--------+
-| NULL   |
-| 1      |
-| aa     |
-| NULL   |
-| NULL   |
-+--------+
-5 rows in set (0.01 sec)
++----------+
+| result   |
++----------+
+| NULL     |
+| 1        |
+| aa       |
+| [1]      |
+| {"bc":2} |
++----------+
+5 rows in set (0.00 sec)
 
 mysql> select json_extract("a.bc", val) result from foo;
 +--------+
@@ -53,6 +56,6 @@ mysql> select json_extract("a.bc", val) result from foo;
 +--------+
 5 rows in set (0.00 sec)
 
-* stuff that's broken
-** arrays aren't handled at all
-** need to run it under valgrind to check for memory leaks
+* coming soon
+** TODO need to run it under valgrind to check for memory leaks
+** TODO should add a json_array_get(index, array)
