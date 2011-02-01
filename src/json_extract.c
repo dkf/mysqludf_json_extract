@@ -191,12 +191,12 @@ int handle_map_key(void *ctx, const unsigned char *s, unsigned int len) {
     return 1;
   }
   if (json_state->current->depth == 0 && 
-      json_state->current->el_len == len && 
-      strncmp((const char *) s, json_state->current->el, len) == 0 &&
-      json_state->current->type == EL_MATCHER) {
+      json_state->current->type == EL_MATCHER &&
+      json_state->current->el_len == len &&
+      strncmp((const char *) s, json_state->current->el, len) == 0) {
     json_state->current = json_state->current->next;
     if (json_state->current->type == EL_TERMINAL) {
-      json_state->done = 1;
+      json_state->done = DONE;
     }
 
   } else {
@@ -442,10 +442,7 @@ char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
     }
   }
 
-  if (json_state->done == DONE) {
-    *is_null = 0;
-    *length = json_state->res_len;
-  } else if (json_state->done == GATHERING) {
+  if (json_state->done == DONE || json_state->done == GATHERING) {
     *is_null = 0;
     *length = json_state->res_len;
   } else {
