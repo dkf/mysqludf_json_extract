@@ -42,11 +42,14 @@ class TestBase(unittest.TestCase):
   def udf_init(self):
     return UDF_INIT(c_char('\x01'), c_uint(32), c_ulong(100), None, c_char('\x00'), None)
   def udf_args(self, spec, json):
+    json_len = randint(0, 4)
+    if json is not None:
+      json_len = len(json)
     return UDF_ARGS(
       c_uint(2),
       TwoArgsType(STRING_RESULT, STRING_RESULT),
       TwoArgs(c_char_p(spec), c_char_p(json)),
-      TwoLengths(c_ulong(len(spec)), c_ulong(len(json))),
+      TwoLengths(c_ulong(len(spec)), c_ulong(json_len)),
       pointer(c_char('\x01')), None, None, None)
   def do_init(self, initid_p, args_p):
     return l.json_extract_init(initid_p, args_p, None)
@@ -58,7 +61,10 @@ class TestBase(unittest.TestCase):
     self.assertEquals(0, self.do_init(pointer(initid), pointer(args)))
 
     length = pointer(c_uint(0))
-    result = c_char_p('\x00' * max(255, len(json)))
+    json_len = 0
+    if json is not None:
+      json_len = len(json)
+    result = c_char_p('\x00' * max(255, json_len))
     is_null = pointer(c_char('\x00'))
     error = pointer(c_char('\x00'))
 
@@ -114,6 +120,8 @@ class TestBasic(TestBase):
   def test_substr(self):
     self.assertResult(None, "a", '{"abc":1}')
     self.assertResult(None, "abc", '{"a":1}')
+  def test_null(self):
+    self.assertResult(None, "a", None)
 
 class TestFuzz(TestBase):
   def select_path(self, o, acc):

@@ -394,6 +394,10 @@ void yajl_gen_take_output(void *ctx, const char *s, unsigned int len) {
 
 char *json_extract(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		       unsigned long *length, char *is_null, char *error) {
+  if (args->args[0] == NULL || args->args[1] == NULL) {
+    *is_null = 1;
+    return result;
+  }
   struct json_state *json_state = (struct json_state *) initid->ptr;
   json_state->done = 0;
   json_state->res = result;
