@@ -114,9 +114,6 @@ int handle_num(void *ctx, const char *num, unsigned int len) {
   struct json_state *json_state = ctx;
   OUT("NUM\n");
   if (json_state->done == DONE) {
-    if (len > 255) {
-      len = 255;
-    }
     strncpy(json_state->res, num, len);
     json_state->res_len += len;
     return 0;
