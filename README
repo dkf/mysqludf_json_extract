@@ -9,7 +9,7 @@ if the result is an object or an array, you get the json
 yajl - git://github.com/lloyd/yajl.git
 ** TODO move yajl in tree
 * building
-cmake . # set MYSQL_HOME=/path/to/dir to specific where to find mysql
+cmake . # set MYSQL_HOME=/path/to/dir to specify where to find mysql
 make
 make test
 * installing
@@ -20,6 +20,7 @@ mysql> create function json_extract returns string soname 'libmysqludf_json_extr
 Query OK, 0 rows affected (0.00 sec)
 * using
 create table foo (id bigint not null auto_increment, val text, primary key (id));
+insert stuff into foo...
 mysql> select * from foo;
 +----+----------------+
 | id | val            |
